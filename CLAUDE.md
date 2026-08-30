@@ -130,6 +130,12 @@ Before changing the tool registry, read [the MCP capability documentation contra
 Keep the version in sync across **all** channels in one go (`git push --follow-tags` pushes
 the tag but does **not** create a GitHub Release; the registry is immutable per version):
 
+0. **Un-link the auth component first.** While it is developed next door,
+   `@a1-x-tech/mcp-google-auth` is a `file:../mcp-google-auth` dependency — npm would publish
+   that path verbatim and every `npx` install would die before the server starts. Publish the
+   component, then replace the range here with its semver. `npm run check:publishable`
+   (wired into `prepublishOnly`, deliberately **not** into `npm test`) refuses the release
+   while any `file:`/`link:`/`portal:` range remains.
 1. Bump `version` in **three places, identically**: `package.json`, and in `server.json`
    **both** the root `version` **and** `packages[0].version`. `mcpName` in `package.json` must
    match `name` in `server.json` (`io.github.A1-x-Tech/mcp-google-calendar`). Verify:

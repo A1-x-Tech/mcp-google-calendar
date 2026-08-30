@@ -366,6 +366,26 @@ test("fetchCalendarIdentity reads the primary calendarList entry and returns its
   }
 });
 
+// The identity check is a standalone fetch outside the client, so it has its
+// own base resolution — and it must agree with loadConfig(), or a redirected
+// install verifies a login against a host it never talks to afterwards.
+test("fetchCalendarIdentity honours GOOGLE_CALENDAR_API_BASE", async () => {
+  const previous = process.env.GOOGLE_CALENDAR_API_BASE;
+  process.env.GOOGLE_CALENDAR_API_BASE = "https://calendar.test/";
+  const mock = mockFetch((url) => {
+    // The trailing slash of the override must not survive into the path.
+    assert.equal(url, "https://calendar.test/calendar/v3/users/me/calendarList/primary");
+    return okJson({ id: "user@example.com" });
+  });
+  try {
+    assert.deepEqual(await fetchCalendarIdentity("FRESH-TOK"), { email: "user@example.com" });
+  } finally {
+    mock.restore();
+    if (previous === undefined) delete process.env.GOOGLE_CALENDAR_API_BASE;
+    else process.env.GOOGLE_CALENDAR_API_BASE = previous;
+  }
+});
+
 // ---- Calendars ----
 
 test("listCalendars maps min_access_role and pagination to the wire query", async () => {

@@ -27,7 +27,8 @@
     "test:src": "node --import tsx --test $(find src -name '*.test.ts')",
     "test:dist": "npm run build && node --test test/dist-smoke.test.js",
     "prepare": "npm run build",
-    "prepublishOnly": "npm run typecheck && npm test"
+    "check:publishable": "node --test test/publish-safety.test.js",
+    "prepublishOnly": "npm run typecheck && npm test && npm run check:publishable"
   },
   "keywords": [
     "mcp",
