@@ -143,3 +143,48 @@ test("the unconfigured prefix offers the in-chat login first and the env path as
   assert.match(prefix, /GOOGLE_CALENDAR_CLIENT_ID/);
   assert.match(prefix, /restart/);
 });
+
+/**
+ * A disabled Calendar API is the likeliest failure right after a wizard-path
+ * login, and the component cannot recognise it: only this server knows what a
+ * Calendar 403 means. Without the translation finish_login says "HTTP 403:
+ * PERMISSION_DENIED" and sends the user to audit calendar sharing they cannot
+ * fix; with it, they get the one instruction that works — enable the API.
+ * Both of Google's spellings must be caught, and nothing else may be swallowed.
+ */
+test("verifyIdentity turns a disabled-API 403 into the enable-the-API advice", async () => {
+  const verify = AUTH_OPTIONS.verifyIdentity!;
+  const originalFetch = globalThis.fetch;
+
+  const respond = (body: string, status: number) => {
+    globalThis.fetch = (async () => new Response(body, { status })) as typeof fetch;
+  };
+
+  try {
+    // Legacy spelling: error.errors[].reason
+    respond('{"error":{"code":403,"errors":[{"reason":"accessNotConfigured"}]}}', 403);
+    await assert.rejects(() => verify("TOK"), (error: Error) => {
+      assert.equal(error.name, "OAuthError");
+      assert.match(error.message, /not enabled in your Google Cloud project/);
+      assert.match(error.message, /SAME project as the OAuth client/);
+      return true;
+    });
+
+    // Current spelling: error.details[].reason
+    respond('{"error":{"code":403,"details":[{"reason":"SERVICE_DISABLED"}]}}', 403);
+    await assert.rejects(() => verify("TOK"), (error: Error) => {
+      assert.equal(error.name, "OAuthError");
+      return true;
+    });
+
+    // An unrelated 403 must NOT be relabelled — a genuine permission problem
+    // deserves its own message, not advice to enable an already-enabled API.
+    respond('{"error":{"code":403,"message":"denied","status":"PERMISSION_DENIED"}}', 403);
+    await assert.rejects(() => verify("TOK"), (error: Error) => {
+      assert.equal(error.name, "GoogleCalendarError");
+      return true;
+    });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

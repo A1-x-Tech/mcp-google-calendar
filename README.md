@@ -11,7 +11,8 @@
 
 It uses the Google Calendar API with your Google account. It distinguishes a whole recurring series from a single occurrence and makes the limits of the Calendar API explicit instead of implying that every calendar task is possible.
 
-- **13 tools.** Inspect calendars, events and free/busy, create and edit events, expand recurring series, and block Out of Office and Focus Time.
+- **19 tools.** Inspect calendars, events and free/busy, create and edit events, expand recurring series, and block Out of Office and Focus Time — plus six for connecting your Google account.
+- **Sign in from the chat.** No credentials file to hand-write: ask the assistant to connect, approve access in the browser, and the very next request works — no restart. The client secret travels as a file path, never through the conversation.
 - **Nobody is emailed by accident.** The Calendar API's default for invitations, changes and cancellations is silence; guests get email only when you ask for it via `send_updates`.
 - **Writes are never replayed.** After an ambiguous failure the server does not retry a write — a duplicated event could re-email every guest.
 - **Minimal Google scopes.** It uses `calendar.events` and `calendar.readonly`, without the broad `calendar` scope.
@@ -243,7 +244,26 @@ The AI client controls confirmation prompts. The server marks reads, writes and 
 
 ## Getting access
 
-Access to your own calendars requires OAuth 2.0; an API key is not enough.
+Access to your own calendars requires OAuth 2.0; an API key is not enough. There are two ways to connect, and the first one needs no configuration file at all.
+
+### Sign in from the chat
+
+Start the server with no credentials and ask the assistant to connect. It walks you through it with six built-in tools:
+
+| Tool | What it does |
+|---|---|
+| `setup_instructions` | The step-by-step checklist for the Google Cloud side, tailored to what is already configured |
+| `set_client` | Reads the OAuth client JSON you downloaded — **by file path, so the secret never goes through the chat** |
+| `start_login` | Returns the Google authorization link and waits for the browser |
+| `finish_login` | Confirms the login and reports which account was connected |
+| `auth_status` | Whether a login exists, where it came from and when it expires — never the token itself |
+| `logout` | Revokes the token at Google and deletes the local file |
+
+The login takes effect immediately: the next tool call works without restarting the AI client. The token is stored in `~/.config/mcp-google-calendar/credentials.json` (on Windows, under `%APPDATA%`), readable only by your account, and never leaves your machine.
+
+### Or configure environment variables
+
+The classic path, and the one to use for CI and headless installs:
 
 1. Create or select a Google Cloud project and enable **Google Calendar API**.
 2. Configure the OAuth consent screen and create a **Desktop app** OAuth client.
@@ -256,6 +276,8 @@ Access to your own calendars requires OAuth 2.0; an API key is not enough.
    ```
 
    The broad `https://www.googleapis.com/auth/calendar` scope is needed only for `raw_request` calls that manage calendars or sharing rules themselves.
+
+Environment variables always win over a login taken in the chat, so an existing configured install keeps behaving exactly as before.
 
 Testing-mode OAuth refresh tokens can expire after seven days. Publish the OAuth app, or use an Internal app in a Workspace domain, when you need long-lived access. Treat the client secret and refresh token as passwords.
 

@@ -713,10 +713,14 @@ export class GoogleCalendarClient {
  * token. The entry's `id` is the account's email address, and the call proves
  * the Calendar API itself answers this token (a plain OIDC userinfo would
  * not). Deliberately a standalone fetch, not a client method: the token comes
- * from the login flow and must not touch the client's credential state.
+ * from the login flow and must not touch the client's credential state — which
+ * is also why the base is read from the environment here instead of a config
+ * object, mirroring `loadConfig()` so a redirected install (tests, a proxy)
+ * verifies against the same host every other request already goes to.
  */
 export async function fetchCalendarIdentity(accessToken: string): Promise<{ email?: string }> {
-  const res = await fetch(`${DEFAULT_BASE}/calendar/v3/users/me/calendarList/primary`, {
+  const base = (process.env.GOOGLE_CALENDAR_API_BASE || DEFAULT_BASE).replace(/\/+$/, "");
+  const res = await fetch(`${base}/calendar/v3/users/me/calendarList/primary`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     signal: AbortSignal.timeout(10_000),
   });
