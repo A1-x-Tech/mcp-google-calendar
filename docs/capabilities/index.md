@@ -1,8 +1,17 @@
 # Google Calendar MCP capabilities
 
-This catalog contains 13 public pages—one for every registered MCP tool in `mcp-google-calendar`. Each page starts with the user's task, explains the result, and states whether the call changes real data.
+This catalog contains 19 public pages—one for every registered MCP tool in `mcp-google-calendar`. Each page starts with the user's task, explains the result, and states whether the call changes real data.
 
 Use this catalog to choose a ready-made capability. Full parameter schemas and API response details remain in the [technical reference](../TOOLS.md).
+
+## Connection & login
+
+- [Check the Google connection](./auth-status.md) — Shows whether the server is connected to Google, the account and the granted scopes. **Impact:** read-only.
+- [Get setup instructions](./setup-instructions.md) — Step-by-step checklist for connecting this server to Google from the chat. **Impact:** read-only.
+- [Save the OAuth client](./set-client.md) — Stores the OAuth client from the downloaded Google Cloud Console JSON, by file path. **Impact:** changes data.
+- [Start the Google login](./start-login.md) — Begins the in-chat login and returns the browser consent link. **Impact:** changes data.
+- [Finish the Google login](./finish-login.md) — Saves the tokens and verifies the login against the Calendar API. **Impact:** changes data.
+- [Disconnect from Google](./logout.md) — Revokes the stored login at Google and deletes the local credentials. **Impact:** destructive operation.
 
 ## Calendars
 

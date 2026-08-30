@@ -9,7 +9,20 @@ import type {
   SendUpdates,
 } from "./types.js";
 import { GoogleCalendarError } from "./types.js";
-import { CredentialsError } from "./config.js";
+import { CredentialsError, DEFAULT_BASE } from "./config.js";
+
+/**
+ * The slice of the auth component's TokenProvider this client consumes
+ * (structurally satisfied by `TokenProvider` from @a1-x-tech/mcp-google-auth).
+ * Kept as a local interface so the client stays testable with a plain object
+ * and never depends on the component's internals.
+ */
+export interface AccessTokenProvider {
+  /** A valid Bearer token; `true` forces a re-mint (the 401 replay path). */
+  getAccessToken(forceRefresh?: boolean): Promise<string>;
+  /** True when a 401 replay is worth trying (a refresh token exists). */
+  canRefresh(): boolean;
+}
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -256,7 +269,16 @@ export class GoogleCalendarClient {
   /** In-flight refresh, deduping concurrent token requests. */
   private refreshInFlight?: Promise<string>;
 
-  constructor(private readonly config: GoogleCalendarConfig) {
+  constructor(
+    private readonly config: GoogleCalendarConfig,
+    /**
+     * Fallback token source (the in-chat login of @a1-x-tech/mcp-google-auth).
+     * Consulted only when the env-derived config carries no credentials —
+     * env wins (component invariant 3), so existing refresh-triple and
+     * access-token installs behave exactly as before.
+     */
+    private readonly tokenProvider?: AccessTokenProvider,
+  ) {
     this.base = config.apiBase.endsWith("/") ? config.apiBase : config.apiBase + "/";
     this.timeoutMs = config.timeoutMs ?? 60_000;
     this.maxRetries = config.maxRetries ?? 3;
@@ -272,24 +294,41 @@ export class GoogleCalendarClient {
    * access token from the refresh token and caches it until shortly before it
    * expires (concurrent callers share one in-flight refresh); otherwise the
    * static GOOGLE_CALENDAR_ACCESS_TOKEN is used as-is. With neither configured,
-   * throws {@link CredentialsError} BEFORE any fetch — a missing setup must
-   * never enter the retry/backoff loop or trigger the 401 re-mint, because no
-   * amount of retrying mints credentials.
+   * the in-chat-login provider (when wired) resolves the token — it re-reads
+   * the stored login per call, so a finish_login taken mid-session works
+   * without a restart, and it throws `AuthRequiredError` BEFORE any fetch.
+   * With no provider either, throws {@link CredentialsError} BEFORE any fetch —
+   * a missing setup must never enter the retry/backoff loop or trigger the 401
+   * re-mint, because no amount of retrying mints credentials.
    */
   private async accessToken(forceRefresh = false): Promise<string> {
-    if (!this.canRefresh()) {
-      if (!this.config.accessToken) throw new CredentialsError();
-      return this.config.accessToken;
+    if (this.canRefresh()) {
+      if (!forceRefresh && this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
+        return this.cachedToken.value;
+      }
+      if (!this.refreshInFlight) {
+        this.refreshInFlight = this.refreshAccessToken().finally(() => {
+          this.refreshInFlight = undefined;
+        });
+      }
+      return this.refreshInFlight;
     }
-    if (!forceRefresh && this.cachedToken && Date.now() < this.cachedToken.expiresAt) {
-      return this.cachedToken.value;
-    }
-    if (!this.refreshInFlight) {
-      this.refreshInFlight = this.refreshAccessToken().finally(() => {
-        this.refreshInFlight = undefined;
-      });
-    }
-    return this.refreshInFlight;
+    // Env wins over the provider (component invariant 3): a static
+    // GOOGLE_CALENDAR_ACCESS_TOKEN keeps behaving exactly as before.
+    if (this.config.accessToken) return this.config.accessToken;
+    if (this.tokenProvider) return this.tokenProvider.getAccessToken(forceRefresh);
+    throw new CredentialsError();
+  }
+
+  /**
+   * True when a 401 is worth one forced re-mint + replay: either this client
+   * can mint from the env refresh triple, or the provider holds a refresh
+   * token (env or stored login).
+   */
+  private canReplayOn401(): boolean {
+    if (this.canRefresh()) return true;
+    if (this.config.accessToken) return false;
+    return this.tokenProvider?.canRefresh() ?? false;
   }
 
   /** Exchanges the refresh token for a fresh access token at Google's token endpoint. */
@@ -449,7 +488,7 @@ export class GoogleCalendarClient {
       // never executed, so this is safe for writes too. The replay is NOT a
       // retry — decrement so the transient budget (maxRetries) stays intact
       // for later 429/5xx/network failures after the re-mint.
-      if (res.status === 401 && this.canRefresh() && !refreshedOn401) {
+      if (res.status === 401 && this.canReplayOn401() && !refreshedOn401) {
         refreshedOn401 = true;
         await this.accessToken(true);
         attempt--;
@@ -666,6 +705,31 @@ export class GoogleCalendarClient {
       compact({ sendUpdates: mapSendUpdates(p.sendUpdates) }),
     );
   }
+}
+
+/**
+ * Light read-only identity check used by the in-chat login's finish_login:
+ * reads the primary calendarList entry with an externally supplied access
+ * token. The entry's `id` is the account's email address, and the call proves
+ * the Calendar API itself answers this token (a plain OIDC userinfo would
+ * not). Deliberately a standalone fetch, not a client method: the token comes
+ * from the login flow and must not touch the client's credential state.
+ */
+export async function fetchCalendarIdentity(accessToken: string): Promise<{ email?: string }> {
+  const res = await fetch(`${DEFAULT_BASE}/calendar/v3/users/me/calendarList/primary`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(10_000),
+  });
+  const text = await res.text();
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = text;
+  }
+  if (!res.ok) throw new GoogleCalendarError(res.status, data);
+  const id = (data as { id?: unknown }).id;
+  return { email: typeof id === "string" ? id : undefined };
 }
 
 /** Drops keys whose value is `undefined` so they are not sent to the API. */

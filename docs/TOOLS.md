@@ -13,6 +13,23 @@ entirely on its own.
 `list_calendars`. `event_id` comes from `list_events` / `create_event`; a
 recurring-instance id (from `list_event_instances`) addresses one occurrence.
 
+## Connection & login
+
+Six onboarding tools from [@a1-x-tech/mcp-google-auth](https://github.com/A1-x-Tech/mcp-google-auth)
+let the user connect from the chat (loopback `127.0.0.1` + PKCE against a
+user-owned Desktop OAuth client) instead of minting a refresh token by hand.
+Environment credentials always win over the stored login; a login finished
+mid-session works immediately, without restarting the AI client.
+
+| Tool | Description |
+|---|---|
+| `auth_status` | Connection state without network calls: token presence and source (`env`/`stored`), expiry, account email, granted vs missing scopes, credentials path, OAuth-client source. Never returns the token. |
+| `setup_instructions` | The one-time checklist: Cloud project, enable the Calendar API, publish the consent screen (Testing-mode refresh tokens die after 7 days), create a Desktop-app client, download its JSON, `set_client`. Shortens when a client is already configured. |
+| `set_client` | Saves the OAuth client from the downloaded `client_secret_*.json` by file PATH into the fleet-shared `~/.config/mcp-google-auth/client.json` (0600). The secret never passes through the chat. |
+| `start_login` | Returns `authorizeUrl` for the user to open in a browser on this machine; a one-shot listener on `127.0.0.1` catches the redirect and exchanges the code locally. Attempt lives 10 minutes. Deliberately **not** read-only. `GOOGLE_CALENDAR_OAUTH_PORT` pins the port (SSH `-L`). |
+| `finish_login` | Saves tokens to `~/.config/mcp-google-calendar/credentials.json` (0600, atomic), verifies via the primary calendarList entry (account email), reports `grantedScopes`/`missingScopes`; an account change revokes the old token and returns `previousAccountEmail`. |
+| `logout` | Revokes the stored token at Google and deletes the local credentials file; env tokens are untouched (`envTokenStillSet`). |
+
 ## Calendars
 
 | Tool | Description |
@@ -71,8 +88,11 @@ recurring-instance id (from `list_event_instances`) addresses one occurrence.
 | `GOOGLE_CALENDAR_CLIENT_SECRET` | yes* | — | OAuth2 client secret (refresh flow). Secret. |
 | `GOOGLE_CALENDAR_REFRESH_TOKEN` | yes* | — | OAuth2 refresh token (refresh flow). Secret. |
 | `GOOGLE_CALENDAR_ACCESS_TOKEN` | yes* | — | Alternative: static access token (~1 h lifetime). Secret. |
+| `GOOGLE_CALENDAR_OAUTH_PORT` | no | random | Fixed port for the `start_login` loopback listener (SSH port forwarding). |
 | `GOOGLE_CALENDAR_API_BASE` | no | `https://www.googleapis.com` | API root override. |
 | `GOOGLE_CALENDAR_TIMEOUT_MS` | no | `60000` | Per-request timeout, ms. |
 | `GOOGLE_CALENDAR_MAX_RETRIES` | no | `3` | Retries on transient errors. |
 
-\* Either the refresh triple together, or the static access token.
+\* Either the refresh triple together, or the static access token — or neither,
+with the in-chat login (`start_login`/`finish_login`) providing the token
+instead. Environment credentials always beat the stored login.

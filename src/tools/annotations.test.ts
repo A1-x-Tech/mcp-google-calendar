@@ -4,6 +4,7 @@ import { registerCalendarTools } from "./calendars.js";
 import { registerEventTools } from "./events.js";
 import { registerAvailabilityTools } from "./availability.js";
 import { registerRawTool } from "./raw.js";
+import { registerAuthTools } from "./auth.js";
 import { DESTRUCTIVE, READ_ONLY, UPDATE, WRITE } from "./util.js";
 
 interface Annotations {
@@ -26,10 +27,29 @@ function collectAnnotations(): Record<string, Annotations | undefined> {
   registerEventTools(server as never, {} as never);
   registerAvailabilityTools(server as never, {} as never);
   registerRawTool(server as never, {} as never);
+  registerAuthTools(server as never);
   return annotations;
 }
 
 const ANN = collectAnnotations();
+
+/**
+ * The onboarding tools come from @a1-x-tech/mcp-google-auth, whose mutating
+ * preset (idempotentHint: true) differs from this server's WRITE — pinned here
+ * literally so a drift in the component surfaces as a conscious decision.
+ */
+const AUTH_WRITE = {
+  readOnlyHint: false,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: true,
+} as const;
+const AUTH_DESTRUCTIVE = {
+  readOnlyHint: false,
+  destructiveHint: true,
+  idempotentHint: false,
+  openWorldHint: true,
+} as const;
 
 /**
  * The Calendar API mixes reads and writes, so instead of one blanket invariant
@@ -50,9 +70,16 @@ const EXPECTED: Record<string, Annotations> = {
   create_out_of_office: WRITE,
   create_focus_time: WRITE,
   raw_request: DESTRUCTIVE,
+  // In-chat login (@a1-x-tech/mcp-google-auth):
+  auth_status: READ_ONLY,
+  setup_instructions: READ_ONLY,
+  set_client: AUTH_WRITE,
+  start_login: AUTH_WRITE, // deliberately NOT read-only — see the dedicated test
+  finish_login: AUTH_WRITE,
+  logout: AUTH_DESTRUCTIVE,
 };
 
-test("registers all thirteen tools with annotations", () => {
+test("registers all nineteen tools with annotations", () => {
   assert.deepEqual(Object.keys(ANN).sort(), Object.keys(EXPECTED).sort());
   for (const [name, a] of Object.entries(ANN)) {
     assert.ok(a, `${name} is missing annotations`);
@@ -78,7 +105,19 @@ test("every mutating tool is flagged non-read-only", () => {
     "create_out_of_office",
     "create_focus_time",
     "raw_request",
+    "set_client",
+    "start_login",
+    "finish_login",
+    "logout",
   ]) {
     assert.equal(ANN[name]?.readOnlyHint, false, `${name} must not claim read-only`);
   }
+});
+
+// A READ_ONLY hint would let an AI client run start_login without user
+// confirmation — i.e. a prompt injection could silently initiate an OAuth
+// flow. The component pins this too; this test keeps the host honest if it
+// ever wraps or overrides the registration.
+test("start_login is deliberately NOT read-only", () => {
+  assert.equal(ANN.start_login?.readOnlyHint, false, "start_login must never claim read-only");
 });

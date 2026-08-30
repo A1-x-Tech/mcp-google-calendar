@@ -1,6 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildEventBody, buildEventTimes, GoogleCalendarClient } from "./client.js";
+import {
+  buildEventBody,
+  buildEventTimes,
+  fetchCalendarIdentity,
+  GoogleCalendarClient,
+  type AccessTokenProvider,
+} from "./client.js";
 import { CredentialsError, MISSING_CREDENTIALS_MESSAGE } from "./config.js";
 import type { GoogleCalendarConfig } from "./types.js";
 
@@ -212,6 +218,151 @@ test("a failed token exchange surfaces the OAuth error", async () => {
     );
   } finally {
     mock.restore();
+  }
+});
+
+// ---- Auth via the in-chat-login TokenProvider ----
+
+/** A fake @a1-x-tech/mcp-google-auth TokenProvider recording its calls. */
+function fakeProvider(tokens: {
+  normal?: string;
+  forced?: string;
+  refreshable?: boolean;
+  error?: Error;
+}): AccessTokenProvider & { calls: boolean[] } {
+  const calls: boolean[] = [];
+  // Mirrors the real provider: a forced re-mint replaces the token the next
+  // plain call returns (the stored file is re-read per call there).
+  let current = tokens.normal ?? "TOK";
+  return {
+    calls,
+    async getAccessToken(forceRefresh = false) {
+      calls.push(forceRefresh);
+      if (tokens.error) throw tokens.error;
+      if (forceRefresh) current = tokens.forced ?? current;
+      return current;
+    },
+    canRefresh: () => tokens.refreshable ?? true,
+  };
+}
+
+test("no env credentials + provider: the token comes from the in-chat login", async () => {
+  const mock = mockFetch(defaultHandler);
+  try {
+    const provider = fakeProvider({ normal: "LOGIN-TOK" });
+    const client = new GoogleCalendarClient({ apiBase: BASE, maxRetries: 0, retryBaseMs: 0 }, provider);
+    await client.getCalendar("primary");
+    assert.equal(mock.calls.length, 1);
+    assert.equal(mock.calls[0].auth, "Bearer LOGIN-TOK");
+    assert.deepEqual(provider.calls, [false], "one plain (unforced) token request");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("env credentials beat the provider (component invariant 3)", async () => {
+  // A static env access token: the provider must never be consulted.
+  const mock = mockFetch(defaultHandler);
+  try {
+    const provider = fakeProvider({ normal: "LOGIN-TOK" });
+    await new GoogleCalendarClient(staticConfig(), provider).getCalendar("primary");
+    assert.equal(mock.calls[0].auth, "Bearer STATIC");
+    assert.equal(provider.calls.length, 0, "env access token wins — provider untouched");
+  } finally {
+    mock.restore();
+  }
+
+  // The env refresh triple: minted at the token endpoint, provider untouched.
+  const mock2 = mockFetch(defaultHandler);
+  try {
+    const provider = fakeProvider({ normal: "LOGIN-TOK" });
+    await new GoogleCalendarClient(refreshConfig(), provider).getCalendar("primary");
+    const lastApi = mock2.calls.filter((c) => c.url.startsWith(`${BASE}/`)).at(-1);
+    assert.equal(lastApi?.auth, "Bearer TOK-1");
+    assert.equal(provider.calls.length, 0, "env refresh triple wins — provider untouched");
+  } finally {
+    mock2.restore();
+  }
+});
+
+test("a provider AuthRequiredError propagates before any fetch — no retries, no replay", async () => {
+  const mock = mockFetch(defaultHandler);
+  try {
+    const error = Object.assign(new Error("Google account is not connected: no access token."), {
+      name: "AuthRequiredError",
+    });
+    const client = new GoogleCalendarClient(
+      { apiBase: BASE, maxRetries: 3, retryBaseMs: 0 },
+      fakeProvider({ error }),
+    );
+    await assert.rejects(
+      () => client.listCalendars(),
+      (err: unknown) => {
+        assert.equal((err as Error).name, "AuthRequiredError", "the component's error must pass through untouched");
+        assert.match((err as Error).message, /not connected/);
+        return true;
+      },
+    );
+    assert.equal(mock.calls.length, 0, "must not fetch at all — no retries, no token mint, no replay");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("a 401 on a provider-backed request forces getAccessToken(true) and replays once", async () => {
+  let apiHits = 0;
+  const mock = mockFetch(() => {
+    apiHits++;
+    if (apiHits === 1) return new Response('{"error":{"message":"expired"}}', { status: 401 });
+    return okJson({ ok: true });
+  });
+  try {
+    const provider = fakeProvider({ normal: "STALE", forced: "FRESH" });
+    const client = new GoogleCalendarClient({ apiBase: BASE, maxRetries: 0, retryBaseMs: 0 }, provider);
+    const result = await client.getCalendar("primary");
+    assert.deepEqual(result, { ok: true });
+    assert.deepEqual(provider.calls, [false, true, false], "one forced re-mint between the 401 and the replay");
+    assert.equal(mock.calls.at(-1)?.auth, "Bearer FRESH");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("a 401 is not replayed when the provider cannot refresh (static stored token)", async () => {
+  let apiHits = 0;
+  const mock = mockFetch(() => {
+    apiHits++;
+    return new Response('{"error":{"message":"nope","status":"UNAUTHENTICATED"}}', { status: 401 });
+  });
+  try {
+    const provider = fakeProvider({ normal: "STATIC-STORED", refreshable: false });
+    const client = new GoogleCalendarClient({ apiBase: BASE, maxRetries: 0, retryBaseMs: 0 }, provider);
+    await assert.rejects(() => client.getCalendar("primary"), /HTTP 401/);
+    assert.equal(apiHits, 1, "no replay without a refresh token to re-mint from");
+  } finally {
+    mock.restore();
+  }
+});
+
+test("fetchCalendarIdentity reads the primary calendarList entry and returns its id as email", async () => {
+  const mock = mockFetch((url) => {
+    assert.equal(url, `${BASE}/calendar/v3/users/me/calendarList/primary`);
+    return okJson({ id: "user@example.com", summary: "user@example.com" });
+  });
+  try {
+    assert.deepEqual(await fetchCalendarIdentity("FRESH-TOK"), { email: "user@example.com" });
+    assert.equal(mock.calls[0].auth, "Bearer FRESH-TOK");
+  } finally {
+    mock.restore();
+  }
+
+  const mock2 = mockFetch(
+    () => new Response('{"error":{"message":"denied","status":"PERMISSION_DENIED"}}', { status: 403 }),
+  );
+  try {
+    await assert.rejects(() => fetchCalendarIdentity("FRESH-TOK"), /HTTP 403: \[PERMISSION_DENIED\] denied/);
+  } finally {
+    mock2.restore();
   }
 });
 
