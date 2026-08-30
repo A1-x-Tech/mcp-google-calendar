@@ -1,0 +1,67 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.A1-x-Tech/mcp-google-calendar",
+  "title": "Google Calendar MCP",
+  "description": "MCP server for the Google Calendar API: calendars, events, attendees, Google Meet, recurring events, free/busy, Out of Office and Focus Time.",
+  "websiteUrl": "https://github.com/A1-x-Tech/mcp-google-calendar#readme",
+  "repository": {
+    "url": "https://github.com/A1-x-Tech/mcp-google-calendar",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@a1-x-tech/mcp-google-calendar",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GOOGLE_CALENDAR_CLIENT_ID",
+          "description": "Google OAuth2 client id (refresh-token flow).",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "GOOGLE_CALENDAR_CLIENT_SECRET",
+          "description": "Google OAuth2 client secret (refresh-token flow). Treat it as a secret.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "GOOGLE_CALENDAR_REFRESH_TOKEN",
+          "description": "Google OAuth2 refresh token, exchanged for access tokens automatically. Treat it as a secret.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "GOOGLE_CALENDAR_ACCESS_TOKEN",
+          "description": "Static OAuth2 access token (~1h lifetime) — alternative to the refresh-token trio, mostly for testing.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "GOOGLE_CALENDAR_API_BASE",
+          "description": "API root override.",
+          "isRequired": false,
+          "default": "https://www.googleapis.com"
+        },
+        {
+          "name": "GOOGLE_CALENDAR_TIMEOUT_MS",
+          "description": "Per-request timeout in milliseconds.",
+          "isRequired": false,
+          "default": "60000"
+        },
+        {
+          "name": "GOOGLE_CALENDAR_MAX_RETRIES",
+          "description": "Retries on transient errors (429 always; 5xx/network for reads).",
+          "isRequired": false,
+          "default": "3"
+        }
+      ]
+    }
+  ]
+}
