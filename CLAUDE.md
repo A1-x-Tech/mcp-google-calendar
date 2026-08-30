@@ -6,7 +6,9 @@ free/busy and Out of Office / Focus Time blocks; `raw_request` is the escape
 hatch. The server talks to `https://www.googleapis.com` (paths `calendar/v3/...`)
 with a Bearer token; the token is minted from an OAuth2 refresh token via
 `https://oauth2.googleapis.com/token` (or a static `GOOGLE_CALENDAR_ACCESS_TOKEN`,
-mostly for testing).
+mostly for testing), or — when the environment carries no credentials — comes
+from the in-chat login of `@a1-x-tech/mcp-google-auth` (six onboarding tools;
+env always beats the stored login).
 
 ## Commands
 
@@ -51,6 +53,13 @@ npm run smoke      # live check: read-only by default; GOOGLE_CALENDAR_SMOKE_WRI
   `ok`/`fail`, the four annotation presets (`READ_ONLY`/`WRITE`/`UPDATE`/`DESTRUCTIVE`) and
   shared zod schema factories (`calendarIdSchema`, `eventIdSchema`, `rfc3339Timestamp`,
   `dateOnlySchema`, `timeZoneSchema`, `sendUpdatesSchema`).
+  `src/tools/auth.ts` — the in-chat login: `AUTH_OPTIONS` (serverName `calendar`,
+  envPrefix `GOOGLE_CALENDAR`, the two minimal scopes, `verifyIdentity` =
+  `fetchCalendarIdentity` in client.ts), `registerAuthTools` wraps the component's
+  `registerGoogleAuth` (six tools: `auth_status`, `setup_instructions`, `set_client`,
+  `start_login` — deliberately NOT read-only, `finish_login`, `logout`) and returns the
+  `TokenProvider` the client takes as its fallback token source; `hasAuthToken` /
+  `authUnconfiguredPrefix` feed index.ts.
 - `src/index.ts` — wires every `register*` into the McpServer. `loadConfigOrDegraded()`
   catches `ConfigError`, pings `startup_failed` (fire-and-forget) and degrades the config to
   "no credentials"; an unconfigured start prepends `UNCONFIGURED_PREFIX` — plus
@@ -70,9 +79,10 @@ npm run smoke      # live check: read-only by default; GOOGLE_CALENDAR_SMOKE_WRI
   the user with a red cross and no reason — telemetry across this line of servers showed that
   state accounted for nearly every unconfigured install, and almost none of them recovered.
   Missing credentials are a survivable state: start, answer initialize (with the unconfigured
-  prefix in `instructions`) and tools/list, and let the first tool call fail with
-  `CredentialsError` — its message names the variables to set and says to restart, because
-  credentials come only from the environment. `config.test.ts`, `client.test.ts` and
+  prefix in `instructions` — it now leads with the in-chat login) and tools/list, and let the
+  first data-tool call fail with the component's `AuthRequiredError`, which names BOTH fixes
+  (start_login and the env variables + restart). `CredentialsError` remains the client's
+  own fallback when no token provider is wired. `config.test.ts`, `client.test.ts` and
   `test/dist-smoke.test.js` pin this.
 - **Credential failures are not transport failures.** `CredentialsError` is thrown in
   `accessToken()` before any fetch — before the retry/backoff loop, the token mint and the
@@ -86,7 +96,10 @@ npm run smoke      # live check: read-only by default; GOOGLE_CALENDAR_SMOKE_WRI
   `declineAllConflictingInvitations`, `doNotDisturb`, `freeBusyReader`) — add any mapping in
   `client.ts`.
 - **Auth is the client's job.** Tools never see tokens; the Bearer header, refresh, caching
-  and the 401 replay all live in `request()`/`accessToken()`.
+  and the 401 replay all live in `request()`/`accessToken()`. The in-chat login's
+  `TokenProvider` is only a fallback inside `accessToken()`: env credentials always win
+  (component invariant 3 — pinned in `client.test.ts`), and `AuthRequiredError` must keep
+  propagating before the retry/backoff loop.
 - **Notifications are explicit.** Every mutating event tool exposes `send_updates`; the API
   default is silence, and descriptions must keep saying so — a model that assumes guests were
   emailed produces broken workflows.
