@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.A1-x-Tech/mcp-google-calendar",
   "title": "Google Calendar MCP",
-  "description": "MCP server for the Google Calendar API: calendars, events, attendees, Google Meet, recurring events, free/busy, Out of Office and Focus Time.",
+  "description": "MCP server for the Google Calendar API: events, recurrence, invitations, availability, calendars.",
   "websiteUrl": "https://github.com/A1-x-Tech/mcp-google-calendar#readme",
   "repository": {
     "url": "https://github.com/A1-x-Tech/mcp-google-calendar",
