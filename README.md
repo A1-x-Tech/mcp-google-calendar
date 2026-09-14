@@ -3,8 +3,8 @@
 **English** | [Русский](./README.ru.md)
 
 [![npm](https://img.shields.io/npm/v/%40a1-x-tech%2Fmcp-google-calendar)](https://www.npmjs.com/package/@a1-x-tech/mcp-google-calendar)
-[![CI](https://github.com/A1-x-Tech/mcp-google-calendar/actions/workflows/ci.yml/badge.svg)](https://github.com/A1-x-Tech/mcp-google-calendar/actions/workflows/ci.yml)
 [![Glama](https://glama.ai/mcp/servers/A1-x-Tech/mcp-google-calendar/badges/score.svg)](https://glama.ai/mcp/servers/A1-x-Tech/mcp-google-calendar)
+[![CI](https://github.com/A1-x-Tech/mcp-google-calendar/actions/workflows/ci.yml/badge.svg)](https://github.com/A1-x-Tech/mcp-google-calendar/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
 
 **A1 Google Calendar MCP** lets an AI app manage Google Calendar in plain language. Review your week, schedule a meeting with guests and a Google Meet link, reschedule or cancel it, find a slot when everyone is free, and block Out of Office or Focus Time.
