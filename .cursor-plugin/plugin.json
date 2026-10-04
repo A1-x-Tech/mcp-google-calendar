@@ -1,0 +1,25 @@
+{
+  "name": "mcp-google-calendar",
+  "displayName": "A1 Google Calendar MCP",
+  "description": "MCP server for the Google Calendar API — list calendars, create and manage events, attendees, Google Meet, recurring events, free/busy, Out of Office and Focus Time. For Claude, Cursor, Codex and othe",
+  "author": {
+    "name": "Aleksandr Kovalko & Zinnur Temerbekov"
+  },
+  "homepage": "https://github.com/A1-x-Tech/mcp-google-calendar#readme",
+  "repository": "https://github.com/A1-x-Tech/mcp-google-calendar",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "google",
+    "google-calendar",
+    "calendar",
+    "events",
+    "scheduling",
+    "google-meet",
+    "claude",
+    "cursor",
+    "codex"
+  ],
+  "logo": "assets/a1-logo.svg"
+}
