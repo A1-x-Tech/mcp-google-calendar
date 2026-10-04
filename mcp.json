@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "google-calendar": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@a1-x-tech/mcp-google-calendar@latest"
+      ],
+      "env": {
+        "GOOGLE_CALENDAR_CLIENT_ID": "${GOOGLE_CALENDAR_CLIENT_ID}",
+        "GOOGLE_CALENDAR_CLIENT_SECRET": "${GOOGLE_CALENDAR_CLIENT_SECRET}",
+        "GOOGLE_CALENDAR_REFRESH_TOKEN": "${GOOGLE_CALENDAR_REFRESH_TOKEN}"
+      }
+    }
+  }
+}
