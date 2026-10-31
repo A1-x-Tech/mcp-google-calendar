@@ -95,3 +95,6 @@ and the project adheres to [Semantic Versioning](https://semver.org/).
   `docs/capabilities/`, enforced by tests.
 
 [1.1.0]: https://github.com/A1-x-Tech/mcp-google-calendar/releases/tag/v1.1.0
+[1.0.0]: https://github.com/A1-x-Tech/mcp-google-calendar/releases/tag/v1.0.0
+[0.2.0]: https://github.com/A1-x-Tech/mcp-google-calendar/releases/tag/v0.2.0
+[0.1.0]: https://github.com/A1-x-Tech/mcp-google-calendar/releases/tag/v0.1.0
