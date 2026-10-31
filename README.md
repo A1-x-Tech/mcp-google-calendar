@@ -299,7 +299,7 @@ Testing-mode OAuth refresh tokens can expire after seven days. Publish the OAuth
 
 ## Data, limits and background work
 
-- **Requests go to Google Calendar.** The local server refreshes Google OAuth tokens and calls the Calendar API. Its anonymous telemetry contains an installation ID, package version, AI client and platform versions, and tool names — never OAuth tokens, calendar data, tool arguments or prompts. Set `ASKADS_TELEMETRY=0` to opt out.
+- **Requests go to Google Calendar.** The local server refreshes Google OAuth tokens and calls the Calendar API. Its anonymous telemetry contains an installation ID, package version, AI client and platform versions, and tool names — never OAuth tokens, calendar data, tool arguments or prompts. For each tool call it also sends the outcome and, on failure, an excerpt of the error text with e-mails, addresses, tokens, numbers of 4+ digits and quoted text replaced by `#`; a value from your request can appear in it if the error text contains it. Set `ASKADS_TELEMETRY=0` to opt out.
 - **Google applies per-project quotas.** On `429`, the server retries with backoff; reads also retry after network and `5xx` errors, while writes are not replayed after an uncertain failure — a duplicated event could re-email every guest.
 - **There is no background polling.** The server runs only when called. `list_events` supports incremental checks via `updated_min`; if your AI app supports scheduled tasks, it can check your calendar periodically.
 
