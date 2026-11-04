@@ -8,6 +8,7 @@ import {
 } from "@a1-x-tech/mcp-google-auth";
 import { fetchCalendarIdentity } from "../client.js";
 import { GoogleCalendarError } from "../types.js";
+import { fail } from "./util.js";
 
 /**
  * The minimal scopes this server needs (see docs/TOOLS.md): calendar.events
@@ -80,6 +81,8 @@ export const AUTH_OPTIONS: GoogleAuthOptions = {
   envPrefix: "GOOGLE_CALENDAR",
   scopes: CALENDAR_SCOPES,
   verifyIdentity: verifyCalendarIdentity,
+  // Login-tool failures go through the server's own renderer, so telemetry gets their origin.
+  fail,
 };
 
 /**
