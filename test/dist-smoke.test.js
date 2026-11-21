@@ -192,7 +192,8 @@ test("dist binary starts without credentials: handshake, tool list, in-chat-logi
     const instructions = client.getInstructions() ?? "";
     assert.match(instructions, /NOT CONNECTED/);
     assert.match(instructions, /start_login/);
-    assert.match(instructions, /setup_instructions/);
+    // The built-in OAuth client makes the Google Cloud wizard unnecessary.
+    assert.doesNotMatch(instructions, /set_client/);
     assert.match(instructions, /GOOGLE_CALENDAR_CLIENT_ID/);
     assert.match(instructions, /restart/);
 

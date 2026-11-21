@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { clearPendingLogin } from "@a1-x-tech/mcp-google-auth";
 import {
   AUTH_OPTIONS,
   authUnconfiguredPrefix,
@@ -113,33 +114,41 @@ test("auth_status routes to the provider: not connected, calendar paths, no erro
   assert.match(status.path, /mcp-google-calendar/, "credentials path must be the calendar's own dir");
 });
 
-test("setup_instructions works without any credentials and asks for the calendar scopes", async () => {
+test("setup_instructions works without any credentials: built-in client, calendar scopes", async () => {
   const { tools, server } = fakeServer();
   registerAuthTools(server);
   const result = await tools.get("setup_instructions")!.handler({});
   assert.ok(!result.isError);
-  const guide = JSON.parse(result.content[0].text!) as { clientConfigured: boolean; scopes: string[] };
-  assert.equal(guide.clientConfigured, false);
+  const guide = JSON.parse(result.content[0].text!) as { clientConfigured: boolean; clientSource: string; scopes: string[] };
+  assert.equal(guide.clientConfigured, true);
+  assert.equal(guide.clientSource, "default", "the built-in A1 client needs no wizard");
   for (const scope of CALENDAR_SCOPES) {
     assert.ok(guide.scopes.includes(scope), `setup guide must request ${scope}`);
   }
 });
 
-test("start_login without an OAuth client fails actionably, naming set_client and the env variables", async () => {
+test("start_login works with the built-in client alone — no set_client, no env", async () => {
   const { tools, server } = fakeServer();
   registerAuthTools(server);
-  const result = await tools.get("start_login")!.handler({});
-  assert.equal(result.isError, true);
-  const text = result.content.map((c) => c.text ?? "").join(" ");
-  assert.match(text, /set_client/);
-  assert.match(text, /GOOGLE_CALENDAR_CLIENT_ID/, "the advice must name this server's variables");
+  try {
+    const result = await tools.get("start_login")!.handler({});
+    assert.ok(!result.isError, result.content[0].text);
+    const { authorizeUrl } = JSON.parse(result.content[0].text!) as { authorizeUrl: string };
+    const url = new URL(authorizeUrl);
+    assert.equal(url.searchParams.get("client_id"), AUTH_OPTIONS.defaultClient?.clientId);
+    for (const scope of CALENDAR_SCOPES) {
+      assert.ok(url.searchParams.get("scope")!.split(" ").includes(scope), `login must request ${scope}`);
+    }
+  } finally {
+    clearPendingLogin(); // closes the loopback listener start_login bound
+  }
 });
 
 test("the unconfigured prefix offers the in-chat login first and the env path as alternative", () => {
   const prefix = authUnconfiguredPrefix();
   assert.match(prefix, /NOT CONNECTED/);
   assert.match(prefix, /start_login/);
-  assert.match(prefix, /setup_instructions/);
+  assert.doesNotMatch(prefix, /set_client/, "the built-in client makes the wizard unnecessary");
   assert.match(prefix, /GOOGLE_CALENDAR_CLIENT_ID/);
   assert.match(prefix, /restart/);
 });

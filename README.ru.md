@@ -53,10 +53,10 @@
 
 ## Быстрый старт
 
-Нужны Node.js 20+, Google-аккаунт и OAuth-данные из проекта Google Cloud с включённым Google Calendar API.
+Нужны Node.js 20+ и Google-аккаунт. Учётные данные при установке не требуются — сервер подключается из диалога.
 
-1. [Подготовьте Google OAuth-доступ](#как-получить-доступ).
-2. Добавьте сервер в AI-приложение.
+1. Добавьте сервер в AI-приложение.
+2. Скажите «подключи Google Календарь»: ассистент даст ссылку для входа в Google — [проект Google Cloud и OAuth-клиент создавать не нужно](#как-получить-доступ).
 3. Отправьте запрос, который только читает данные.
 
 <details open>
@@ -64,15 +64,12 @@
 
 <br>
 
-**В приложении:** откройте **Settings → MCP servers**, нажмите **Add server**, выберите **STDIO**, укажите команду `npx -y @a1-x-tech/mcp-google-calendar@latest` и переменные окружения `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, `GOOGLE_CALENDAR_REFRESH_TOKEN`, затем нажмите **Save**, потом **Restart**.
+**В приложении:** откройте **Settings → MCP servers**, нажмите **Add server**, выберите **STDIO**, укажите команду `npx -y @a1-x-tech/mcp-google-calendar@latest`, затем нажмите **Save**, потом **Restart**.
 
 **В командной строке:**
 
 ```bash
 codex mcp add google-calendar \
-  --env GOOGLE_CALENDAR_CLIENT_ID=your_client_id \
-  --env GOOGLE_CALENDAR_CLIENT_SECRET=your_client_secret \
-  --env GOOGLE_CALENDAR_REFRESH_TOKEN=your_refresh_token \
   -- npx -y @a1-x-tech/mcp-google-calendar@latest
 ```
 
@@ -91,9 +88,6 @@ codex mcp list
 
 ```bash
 claude mcp add \
-  --env GOOGLE_CALENDAR_CLIENT_ID=your_client_id \
-  --env GOOGLE_CALENDAR_CLIENT_SECRET=your_client_secret \
-  --env GOOGLE_CALENDAR_REFRESH_TOKEN=your_refresh_token \
   --transport stdio --scope user google-calendar \
   -- npx -y @a1-x-tech/mcp-google-calendar@latest
 ```
@@ -120,12 +114,7 @@ claude mcp list
   "mcpServers": {
     "google-calendar": {
       "command": "npx",
-      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"],
-      "env": {
-        "GOOGLE_CALENDAR_CLIENT_ID": "your_client_id",
-        "GOOGLE_CALENDAR_CLIENT_SECRET": "your_client_secret",
-        "GOOGLE_CALENDAR_REFRESH_TOKEN": "your_refresh_token"
-      }
+      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"]
     }
   }
 }
@@ -150,12 +139,7 @@ claude mcp list
     "google-calendar": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"],
-      "env": {
-        "GOOGLE_CALENDAR_CLIENT_ID": "your_client_id",
-        "GOOGLE_CALENDAR_CLIENT_SECRET": "your_client_secret",
-        "GOOGLE_CALENDAR_REFRESH_TOKEN": "your_refresh_token"
-      }
+      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"]
     }
   }
 }
@@ -178,19 +162,9 @@ claude mcp list
     "google-calendar": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"],
-      "env": {
-        "GOOGLE_CALENDAR_CLIENT_ID": "${input:calendar_client_id}",
-        "GOOGLE_CALENDAR_CLIENT_SECRET": "${input:calendar_client_secret}",
-        "GOOGLE_CALENDAR_REFRESH_TOKEN": "${input:calendar_refresh_token}"
-      }
+      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"]
     }
-  },
-  "inputs": [
-    { "type": "promptString", "id": "calendar_client_id", "description": "Google OAuth client ID" },
-    { "type": "promptString", "id": "calendar_client_secret", "description": "Google OAuth client secret", "password": true },
-    { "type": "promptString", "id": "calendar_refresh_token", "description": "Google OAuth refresh token", "password": true }
-  ]
+  }
 }
 ```
 
@@ -250,16 +224,20 @@ claude mcp list
 
 ### Вход из диалога
 
-Запустите сервер без учётных данных и попросите ассистента подключиться. Он проведёт вас по шагам с помощью шести встроенных инструментов:
+Запустите сервер без учётных данных и попросите ассистента подключиться. У сервера есть встроенный OAuth-клиент, поэтому создавать проект Google Cloud и OAuth-клиент не нужно — ассистент даст ссылку для входа в Google, а вы подтвердите доступ:
 
 | Инструмент | Что делает |
 |---|---|
-| `setup_instructions` | Пошаговый чеклист для стороны Google Cloud, с учётом того, что уже настроено |
-| `set_client` | Читает скачанный JSON OAuth-клиента — **по пути к файлу, поэтому секрет не проходит через диалог** |
 | `start_login` | Возвращает ссылку авторизации Google и ждёт браузер |
 | `finish_login` | Подтверждает вход и сообщает, какой аккаунт подключён |
 | `auth_status` | Есть ли вход, откуда он взят и когда истекает — но никогда сам токен |
 | `logout` | Отзывает токен на стороне Google и удаляет локальный файл |
+| `setup_instructions` | По желанию: чеклист для подключения собственного OAuth-клиента Google Cloud |
+| `set_client` | По желанию: читает JSON вашего OAuth-клиента — **по пути к файлу, поэтому секрет не проходит через диалог** |
+
+Пока приложение проходит проверку Google, на шаге согласия может появиться экран **«Google hasn't verified this app»**: выберите **Advanced → Go to A1 MCP**. Встроенный клиент только называет приложение для Google — токены выдаются вашей машине и хранятся на ней, A1 их не получает.
+
+Встроенный клиент и его квоту Google API делят все, кто им пользуется. Подключите свой клиент (`setup_instructions`, затем `set_client`), чтобы получить собственную квоту или если администратор Google Workspace блокирует сторонние приложения; он получает приоритет над встроенным.
 
 Вход вступает в силу сразу: следующий вызов инструмента сработает без перезапуска AI-клиента. Токен хранится в `~/.config/mcp-google-calendar/credentials.json` (в Windows — в `%APPDATA%`), доступен только вашей учётной записи и не покидает вашу машину.
 
@@ -287,15 +265,15 @@ Refresh token OAuth-приложения в режиме Testing может ис
 
 | Переменная | Обязательна | Описание |
 |---|---|---|
-| `GOOGLE_CALENDAR_CLIENT_ID` | Да* | OAuth client ID. |
-| `GOOGLE_CALENDAR_CLIENT_SECRET` | Да* | OAuth client secret. |
-| `GOOGLE_CALENDAR_REFRESH_TOKEN` | Да* | OAuth refresh token. |
-| `GOOGLE_CALENDAR_ACCESS_TOKEN` | Да* | Короткоживущая (~1 час) альтернатива OAuth-тройке. |
+| `GOOGLE_CALENDAR_CLIENT_ID` | Нет* | OAuth client ID. |
+| `GOOGLE_CALENDAR_CLIENT_SECRET` | Нет* | OAuth client secret. |
+| `GOOGLE_CALENDAR_REFRESH_TOKEN` | Нет* | OAuth refresh token. |
+| `GOOGLE_CALENDAR_ACCESS_TOKEN` | Нет* | Короткоживущая (~1 час) альтернатива OAuth-тройке. |
 | `GOOGLE_CALENDAR_API_BASE` | Нет | Переопределяет базовый URL Google API; по умолчанию `https://www.googleapis.com`. |
 | `GOOGLE_CALENDAR_TIMEOUT_MS` | Нет | Тайм-аут одного запроса; по умолчанию `60000` мс. |
 | `GOOGLE_CALENDAR_MAX_RETRIES` | Нет | Повторы временных ошибок; по умолчанию `3`. |
 
-\* Передайте OAuth-тройку или access token. Без учётных данных сервер всё равно стартует и отвечает на MCP-рукопожатие; первый вызов инструмента назовёт переменные, которые нужно задать.
+\* Нужны только для установки без входа из диалога: передайте OAuth-тройку или access token.
 
 ## Данные, лимиты и работа в фоне
 

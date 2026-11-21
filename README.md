@@ -53,10 +53,10 @@ Start with a read-only question:
 
 ## Quick start
 
-You need Node.js 20+, a Google account and OAuth credentials from a Google Cloud project with the Google Calendar API enabled.
+You need Node.js 20+ and a Google account. Credentials are not required at install time — the server connects from the conversation.
 
-1. [Prepare Google OAuth access](#getting-access).
-2. Add the server to your AI app.
+1. Add the server to your AI app.
+2. Say "connect Google Calendar": the assistant gives you a Google sign-in link — [no Google Cloud project or OAuth client to create](#getting-access).
 3. Ask the read-only question above.
 
 <details open>
@@ -64,15 +64,12 @@ You need Node.js 20+, a Google account and OAuth credentials from a Google Cloud
 
 <br>
 
-**In the app:** open **Settings → MCP servers**, select **Add server**, choose **STDIO**, enter the command `npx -y @a1-x-tech/mcp-google-calendar@latest` and environment variables `GOOGLE_CALENDAR_CLIENT_ID`, `GOOGLE_CALENDAR_CLIENT_SECRET`, `GOOGLE_CALENDAR_REFRESH_TOKEN`, then select **Save** and **Restart**.
+**In the app:** open **Settings → MCP servers**, select **Add server**, choose **STDIO**, enter the command `npx -y @a1-x-tech/mcp-google-calendar@latest`, then select **Save** and **Restart**.
 
 **From the command line:**
 
 ```bash
 codex mcp add google-calendar \
-  --env GOOGLE_CALENDAR_CLIENT_ID=your_client_id \
-  --env GOOGLE_CALENDAR_CLIENT_SECRET=your_client_secret \
-  --env GOOGLE_CALENDAR_REFRESH_TOKEN=your_refresh_token \
   -- npx -y @a1-x-tech/mcp-google-calendar@latest
 ```
 
@@ -91,9 +88,6 @@ codex mcp list
 
 ```bash
 claude mcp add \
-  --env GOOGLE_CALENDAR_CLIENT_ID=your_client_id \
-  --env GOOGLE_CALENDAR_CLIENT_SECRET=your_client_secret \
-  --env GOOGLE_CALENDAR_REFRESH_TOKEN=your_refresh_token \
   --transport stdio --scope user google-calendar \
   -- npx -y @a1-x-tech/mcp-google-calendar@latest
 ```
@@ -120,12 +114,7 @@ This repository currently publishes an npm stdio package and does not contain a 
   "mcpServers": {
     "google-calendar": {
       "command": "npx",
-      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"],
-      "env": {
-        "GOOGLE_CALENDAR_CLIENT_ID": "your_client_id",
-        "GOOGLE_CALENDAR_CLIENT_SECRET": "your_client_secret",
-        "GOOGLE_CALENDAR_REFRESH_TOKEN": "your_refresh_token"
-      }
+      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"]
     }
   }
 }
@@ -150,12 +139,7 @@ Add this to `~/.cursor/mcp.json` on macOS/Linux or `%USERPROFILE%\.cursor\mcp.js
     "google-calendar": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"],
-      "env": {
-        "GOOGLE_CALENDAR_CLIENT_ID": "your_client_id",
-        "GOOGLE_CALENDAR_CLIENT_SECRET": "your_client_secret",
-        "GOOGLE_CALENDAR_REFRESH_TOKEN": "your_refresh_token"
-      }
+      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"]
     }
   }
 }
@@ -178,19 +162,9 @@ Run **MCP: Open User Configuration** and add:
     "google-calendar": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"],
-      "env": {
-        "GOOGLE_CALENDAR_CLIENT_ID": "${input:calendar_client_id}",
-        "GOOGLE_CALENDAR_CLIENT_SECRET": "${input:calendar_client_secret}",
-        "GOOGLE_CALENDAR_REFRESH_TOKEN": "${input:calendar_refresh_token}"
-      }
+      "args": ["-y", "@a1-x-tech/mcp-google-calendar@latest"]
     }
-  },
-  "inputs": [
-    { "type": "promptString", "id": "calendar_client_id", "description": "Google OAuth client ID" },
-    { "type": "promptString", "id": "calendar_client_secret", "description": "Google OAuth client secret", "password": true },
-    { "type": "promptString", "id": "calendar_refresh_token", "description": "Google OAuth refresh token", "password": true }
-  ]
+  }
 }
 ```
 
@@ -250,16 +224,20 @@ Access to your own calendars requires OAuth 2.0; an API key is not enough. There
 
 ### Sign in from the chat
 
-Start the server with no credentials and ask the assistant to connect. It walks you through it with six built-in tools:
+Start the server with no credentials and ask the assistant to connect. The server ships with a built-in OAuth client, so there is no Google Cloud project or OAuth client to create — the assistant gives you a Google sign-in link and you approve access:
 
 | Tool | What it does |
 |---|---|
-| `setup_instructions` | The step-by-step checklist for the Google Cloud side, tailored to what is already configured |
-| `set_client` | Reads the OAuth client JSON you downloaded — **by file path, so the secret never goes through the chat** |
 | `start_login` | Returns the Google authorization link and waits for the browser |
 | `finish_login` | Confirms the login and reports which account was connected |
 | `auth_status` | Whether a login exists, where it came from and when it expires — never the token itself |
 | `logout` | Revokes the token at Google and deletes the local file |
+| `setup_instructions` | Optional: the checklist for using your own Google Cloud OAuth client instead |
+| `set_client` | Optional: reads your own OAuth client JSON — **by file path, so the secret never goes through the chat** |
+
+Google may show a **"Google hasn't verified this app"** screen while the app's verification is in progress: choose **Advanced → Go to A1 MCP**. The built-in client only identifies the app to Google — the tokens are issued to and stored on your machine, and A1 never receives them.
+
+The built-in client and its Google API quota are shared by everyone who uses it. Bring your own client (`setup_instructions`, then `set_client`) to get a quota of your own, or when a Google Workspace admin blocks third-party apps; it then takes priority over the built-in one.
 
 The login takes effect immediately: the next tool call works without restarting the AI client. The token is stored in `~/.config/mcp-google-calendar/credentials.json` (on Windows, under `%APPDATA%`), readable only by your account, and never leaves your machine.
 
@@ -287,15 +265,15 @@ Testing-mode OAuth refresh tokens can expire after seven days. Publish the OAuth
 
 | Variable | Required | Description |
 |---|---|---|
-| `GOOGLE_CALENDAR_CLIENT_ID` | Yes* | OAuth client ID. |
-| `GOOGLE_CALENDAR_CLIENT_SECRET` | Yes* | OAuth client secret. |
-| `GOOGLE_CALENDAR_REFRESH_TOKEN` | Yes* | OAuth refresh token. |
-| `GOOGLE_CALENDAR_ACCESS_TOKEN` | Yes* | Short-lived (~1 hour) alternative to the OAuth trio. |
+| `GOOGLE_CALENDAR_CLIENT_ID` | No* | OAuth client ID. |
+| `GOOGLE_CALENDAR_CLIENT_SECRET` | No* | OAuth client secret. |
+| `GOOGLE_CALENDAR_REFRESH_TOKEN` | No* | OAuth refresh token. |
+| `GOOGLE_CALENDAR_ACCESS_TOKEN` | No* | Short-lived (~1 hour) alternative to the OAuth trio. |
 | `GOOGLE_CALENDAR_API_BASE` | No | Google API base URL override; default `https://www.googleapis.com`. |
 | `GOOGLE_CALENDAR_TIMEOUT_MS` | No | Per-request timeout; default `60000` ms. |
 | `GOOGLE_CALENDAR_MAX_RETRIES` | No | Temporary-error retries; default `3`. |
 
-\* Provide either the OAuth trio or an access token. Without credentials the server still starts and completes the MCP handshake; the first tool call then names the exact variables to set.
+\* Only for a setup without the in-chat login: provide either the OAuth trio or an access token.
 
 ## Data, limits and background work
 
